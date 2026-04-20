@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCP High Compliance Topology</title>
+<style>
+:root {
+  --color-text-primary: #1c1c1a;
+  --color-text-secondary: #5a5a56;
+  --color-text-tertiary: #8a8a85;
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f4f0;
+  --color-border-tertiary: rgba(0,0,0,0.1);
+  --color-border-secondary: rgba(0,0,0,0.18);
+  --color-border-info: #378ADD;
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text-primary: #e8e6de;
+    --color-text-secondary: #a8a69e;
+    --color-text-tertiary: #6e6c66;
+    --color-background-primary: #1e1e1c;
+    --color-background-secondary: #2a2a28;
+    --color-border-tertiary: rgba(255,255,255,0.1);
+    --color-border-secondary: rgba(255,255,255,0.18);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:var(--font-sans);background:var(--color-background-secondary);color:var(--color-text-primary);min-height:100vh}
+.page{max-width:720px;margin:0 auto;padding:40px 24px 60px}
+.header{margin-bottom:28px}
+.header h1{font-size:22px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.header p{font-size:13px;color:var(--color-text-tertiary)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}
+.leg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary)}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.topo{display:flex;flex-direction:column;gap:0}
+.layer{position:relative;margin-bottom:2px}
+.flow-arrow{display:flex;justify-content:center;align-items:center;height:24px;color:var(--color-text-tertiary);font-size:16px;line-height:1}
+.flow-label{font-size:11px;color:var(--color-text-tertiary);text-align:center;margin-bottom:4px}
+.node{border-radius:10px;border:0.5px solid;cursor:pointer;transition:opacity .15s,transform .1s,box-shadow .15s;user-select:none;position:relative}
+.node:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.node:active{transform:scale(.98)}
+.node.active{outline:2px solid var(--color-border-info);outline-offset:2px}
+.full{width:100%;padding:13px 18px}
+.full .label{font-size:14px;font-weight:500}
+.full .sub{font-size:12px;margin-top:3px;opacity:.72}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.card-node{padding:11px 14px}
+.card-node .label{font-size:13px;font-weight:500}
+.card-node .sub{font-size:11px;margin-top:3px;opacity:.7}
+.internet-wrap{display:flex;justify-content:center;margin-bottom:2px}
+.internet-node{border-radius:24px;padding:10px 28px;text-align:center;font-size:14px;font-weight:500}
+.vpc-wrap{border-radius:14px;border:1.5px dashed #534AB7;padding:16px;margin:4px 0}
+.vpc-label{font-size:11px;font-weight:500;color:#534AB7;margin-bottom:14px;opacity:.8}
+.shared-label{font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px;margin-top:10px}
+
+/* Panel overlay — full-page faux modal using normal flow */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center;padding:16px}
+.panel-overlay.open{display:flex}
+.panel{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:16px;padding:24px;width:360px;max-width:100%;position:relative}
+.panel-close{position:absolute;top:14px;right:16px;font-size:20px;cursor:pointer;color:var(--color-text-tertiary);line-height:1;border:none;background:none;padding:0}
+.panel h2{font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:8px;padding-right:24px}
+.panel p{font-size:13px;color:var(--color-text-secondary);line-height:1.65;margin-bottom:14px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.tag{font-size:11px;padding:3px 9px;border-radius:6px;font-weight:500}
+.ask-btn{width:100%;padding:9px 12px;border-radius:9px;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;text-align:left;transition:background .15s}
+.ask-btn:hover{background:var(--color-background-secondary)}
+.ask-note{font-size:11px;color:var(--color-text-tertiary);margin-top:8px;text-align:center}
+
+/* Color themes */
+.c-coral-bg{background:#FAECE7;border-color:#993C1D;color:#712B13}
+.c-blue-bg{background:#E6F1FB;border-color:#185FA5;color:#0C447C}
+.c-purple-bg{background:#EEEDFE;border-color:#534AB7;color:#3C3489}
+.c-teal-bg{background:#E1F5EE;border-color:#0F6E56;color:#085041}
+.c-green-bg{background:#EAF3DE;border-color:#3B6D11;color:#27500A}
+.c-amber-bg{background:#FAEEDA;border-color:#854F0B;color:#633806}
+.c-red-bg{background:#FCEBEB;border-color:#A32D2D;color:#791F1F}
+.c-gray-bg{background:#F1EFE8;border-color:#5F5E5A;color:#444441}
+
+.tag-coral{background:#F5C4B3;color:#712B13}
+.tag-blue{background:#B5D4F4;color:#0C447C}
+.tag-purple{background:#CECBF6;color:#3C3489}
+.tag-teal{background:#9FE1CB;color:#085041}
+.tag-green{background:#C0DD97;color:#27500A}
+.tag-amber{background:#FAC775;color:#633806}
+.tag-red{background:#F7C1C1;color:#791F1F}
+.tag-gray{background:#D3D1C7;color:#444441}
+
+@media (prefers-color-scheme: dark) {
+  .c-coral-bg{background:#4A1B0C;border-color:#F0997B;color:#F5C4B3}
+  .c-blue-bg{background:#042C53;border-color:#85B7EB;color:#B5D4F4}
+  .c-purple-bg{background:#26215C;border-color:#AFA9EC;color:#CECBF6}
+  .c-teal-bg{background:#04342C;border-color:#5DCAA5;color:#9FE1CB}
+  .c-green-bg{background:#173404;border-color:#97C459;color:#C0DD97}
+  .c-amber-bg{background:#412402;border-color:#EF9F27;color:#FAC775}
+  .c-red-bg{background:#501313;border-color:#F09595;color:#F7C1C1}
+  .c-gray-bg{background:#2C2C2A;border-color:#B4B2A9;color:#D3D1C7}
+  .tag-coral{background:#712B13;color:#F5C4B3}
+  .tag-blue{background:#0C447C;color:#B5D4F4}
+  .tag-purple{background:#3C3489;color:#CECBF6}
+  .tag-teal{background:#085041;color:#9FE1CB}
+  .tag-green{background:#27500A;color:#C0DD97}
+  .tag-amber{background:#633806;color:#FAC775}
+  .tag-red{background:#791F1F;color:#F7C1C1}
+  .tag-gray{background:#444441;color:#D3D1C7}
+  .vpc-wrap{border-color:#AFA9EC}
+  .vpc-label{color:#AFA9EC}
+}
+@media (max-width:500px) {
+  .three-col{grid-template-columns:1fr 1fr}
+  .page{padding:24px 16px 48px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <h1>High compliance topology</h1>
+    <p>DoD IL2 · FedRAMP · PCI DSS — click any component to explore</p>
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#D85A30"></div>Security</div>
+    <div class="leg"><div class="leg-dot" style="background:#378ADD"></div>Networking</div>
+    <div class="leg"><div class="leg-dot" style="background:#1D9E75"></div>Compute</div>
+    <div class="leg"><div class="leg-dot" style="background:#BA7517"></div>Data</div>
+    <div class="leg"><div class="leg-dot" style="background:#E24B4A"></div>Observability</div>
+  </div>
+
+  <div class="topo">
+    <div class="internet-wrap">
+      <div class="node c-gray-bg internet-node" data-id="internet">Internet</div>
+    </div>
+
+    <div class="flow-arrow">↓</div>
+
+    <div class="layer">
+      <div class="node full c-coral-bg" data-id="armor">
+        <div class="label">Cloud Armor</div>
+        <div class="sub">WAF + DDoS · OWASP Top 10 · Rate Limiting · Geo-block</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">↓</div>
+
+    <div class="layer">
+      <div class="node full c-blue-bg" data-id="glb">
+        <div class="label">Global External Application LB</div>
+        <div class="sub">TLS termination · Anycast IP · HTTPS</div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">↓</div>
+
+    <div class="vpc-wrap">
+      <div class="vpc-label">GCP VPC — Assured Workloads (US Regions Only) · VPC Service Controls · Custom Mode</div>
+
+      <div class="two-col" style="margin-bottom:8px">
+        <div class="node card-node c-teal-bg" data-id="web1">
+          <div class="label">Web servers</div>
+          <div class="sub">Private IPs only</div>
+        </div>
+        <div class="node card-node c-teal-bg" data-id="web2">
+          <div class="label">Web servers</div>
+          <div class="sub">Private IPs only</div>
+        </div>
+      </div>
+
+      <div class="flow-label">↓ Hierarchical firewall policy</div>
+
+      <div class="layer" style="margin-bottom:8px">
+        <div class="node full c-purple-bg" data-id="ilb">
+          <div class="label">Internal Application LB</div>
+          <div class="sub">No internet exposure</div>
+        </div>
+      </div>
+
+      <div class="flow-label">↓ Cloud IDS (East-West inspection)</div>
+
+      <div class="two-col" style="margin-bottom:8px">
+        <div class="node card-node c-green-bg" data-id="app1">
+          <div class="label">App servers</div>
+          <div class="sub">Business logic</div>
+        </div>
+        <div class="node card-node c-green-bg" data-id="app2">
+          <div class="label">App servers</div>
+          <div class="sub">Business logic</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="node card-node c-amber-bg" data-id="sql">
+          <div class="label">Cloud SQL / AlloyDB</div>
+          <div class="sub">Postgres · FIPS 140-2</div>
+        </div>
+        <div class="node card-node c-amber-bg" data-id="replica">
+          <div class="label">Read replica</div>
+          <div class="sub">HA failover</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="shared-label">Shared services / Logging &amp; monitoring</div>
+      <div class="three-col">
+        <div class="node card-node c-red-bg" data-id="logging">
+          <div class="label">Cloud Logging</div>
+          <div class="sub">Audit Trails</div>
+        </div>
+        <div class="node card-node c-red-bg" data-id="monitoring">
+          <div class="label">Cloud Monitoring</div>
+          <div class="sub">SIEM export</div>
+        </div>
+        <div class="node card-node c-red-bg" data-id="secrets">
+          <div class="label">Secret Manager</div>
+          <div class="sub">KMS · CMEK</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="panel-overlay">
+  <div class="panel">
+    <button class="panel-close" id="panel-close" aria-label="Close">×</button>
+    <h2 id="panel-title"></h2>
+    <div class="tags" id="panel-tags"></div>
+    <p id="panel-desc"></p>
+    <div class="ask-note">Copy this question to research further:</div>
+    <button class="ask-btn" id="panel-ask"></button>
+  </div>
+</div>
+
+<script>
+const data = {
+  internet:{title:"Internet",color:"gray",tags:[],desc:"Public internet traffic entering the architecture. All inbound requests must pass through Cloud Armor before reaching any GCP resources — there is no direct path to the load balancer.",ask:"How should I think about internet-facing attack surface in GCP?"},
+  armor:{title:"Cloud Armor",color:"coral",tags:["WAF","DDoS protection","Geo-blocking"],desc:"Google's managed web application firewall and DDoS mitigation layer. Enforces OWASP Top 10 rules, rate limiting per IP, and can block traffic by country. In a FedRAMP/PCI context, Cloud Armor also satisfies the perimeter WAF requirement.",ask:"What Cloud Armor rules are most important for PCI DSS compliance?"},
+  glb:{title:"Global External Application LB",color:"blue",tags:["Anycast IP","TLS termination","HTTPS"],desc:"Google's globally distributed Layer 7 load balancer. Terminates TLS at Google's edge (Anycast), then routes traffic to the nearest healthy backend over Google's internal backbone. Provides built-in SSL policy enforcement.",ask:"How does TLS termination work on the Global External Application LB?"},
+  web1:{title:"Web servers (primary)",color:"teal",tags:["Private IPs only","Public subnet"],desc:"Front-end web tier with no public IP addresses. Receives traffic only from the internal load balancer. In Assured Workloads, all instances are constrained to US regions and can't route to non-approved destinations.",ask:"Why do web servers in this topology only have private IPs?"},
+  web2:{title:"Web servers (secondary)",color:"teal",tags:["Private IPs only","Redundancy"],desc:"Second web server pool for availability. Traffic is distributed across both pools by the Internal Application LB. Running two pools across zones protects against single-zone failures.",ask:"How does multi-zone redundancy work for web servers in GCP?"},
+  ilb:{title:"Internal Application LB",color:"purple",tags:["Hierarchical firewall","No internet exposure"],desc:"An internal Layer 7 load balancer that routes traffic between the web tier and app tier entirely within the VPC. Because it has no external IP, it's never directly reachable from the internet. Hierarchical firewall policies apply at the VPC and subnet level here.",ask:"What is the difference between an internal and external load balancer in GCP?"},
+  app1:{title:"App servers (primary)",color:"green",tags:["Private subnet","Business logic"],desc:"Application tier running business logic in a private subnet. Communicates with the database over a private IP. Cloud IDS monitors East-West traffic here to detect lateral movement or exfiltration attempts.",ask:"How does Cloud IDS monitor East-West traffic between app servers and the database?"},
+  app2:{title:"App servers (secondary)",color:"green",tags:["Private subnet","HA pair"],desc:"Second app server pool. Like the web tier, running two pools across zones ensures the app tier survives a zonal outage without disruption.",ask:"What happens to app server traffic during a zonal failure in GCP?"},
+  sql:{title:"Cloud SQL / AlloyDB",color:"amber",tags:["FIPS 140-2","Postgres","Isolated subnet"],desc:"Primary database in an isolated subnet with no routes to the internet. FIPS 140-2 validated encryption satisfies FedRAMP and PCI requirements for data at rest and in transit. Only the app servers can connect via private IP.",ask:"What makes Cloud SQL FIPS 140-2 compliant and why does that matter?"},
+  replica:{title:"Read replica",color:"amber",tags:["HA failover","Cross-zone"],desc:"A synchronous read replica in a separate zone provides high availability. In the event the primary fails, Cloud SQL performs automatic failover to the replica with minimal downtime. Also offloads read-heavy queries from the primary.",ask:"How does Cloud SQL automatic failover work with a read replica?"},
+  logging:{title:"Cloud Logging",color:"red",tags:["Audit Trails","Compliance"],desc:"Centralized log aggregation for all GCP resources. In this topology, audit logs from every tier flow to Cloud Logging. Logs are immutable and retained per compliance policy. Used as the source of truth for FedRAMP and PCI audit requirements.",ask:"What Cloud Logging configuration is required for FedRAMP authorization?"},
+  monitoring:{title:"Cloud Monitoring",color:"red",tags:["SIEM export","Dashboards","Alerting"],desc:"Metrics, uptime checks, and alerting across all tiers. The SIEM export integration ships logs and metrics to an external SIEM (like Splunk or Chronicle) for compliance correlation and incident response.",ask:"How do I set up SIEM export from Cloud Monitoring?"},
+  secrets:{title:"Secret Manager",color:"red",tags:["KMS","CMEK","Credentials"],desc:"Centralized secrets store for API keys, database passwords, and TLS certificates. CMEK means you manage the encryption keys — if your key is revoked, the secret becomes unreadable. App servers fetch secrets at runtime via IAM-controlled API calls, with every access logged.",ask:"How do app servers securely fetch secrets from Secret Manager at runtime?"}
+};
+
+const tagClass = {coral:"tag-coral",blue:"tag-blue",purple:"tag-purple",teal:"tag-teal",green:"tag-green",amber:"tag-amber",red:"tag-red",gray:"tag-gray"};
+
+document.querySelectorAll('.node').forEach(n => {
+  n.addEventListener('click', () => {
+    const d = data[n.dataset.id];
+    if (!d) return;
+    document.querySelectorAll('.node').forEach(x => x.classList.remove('active'));
+    n.classList.add('active');
+    document.getElementById('panel-title').textContent = d.title;
+    document.getElementById('panel-tags').innerHTML = d.tags.map(t => `<span class="tag ${tagClass[d.color]}">${t}</span>`).join('');
+    document.getElementById('panel-desc').textContent = d.desc;
+    const btn = document.getElementById('panel-ask');
+    btn.textContent = d.ask;
+    btn.onclick = () => {
+      navigator.clipboard.writeText(d.ask).catch(() => {});
+    };
+    document.getElementById('panel-overlay').classList.add('open');
+  });
+});
+
+function close() {
+  document.getElementById('panel-overlay').classList.remove('open');
+  document.querySelectorAll('.node').forEach(x => x.classList.remove('active'));
+}
+document.getElementById('panel-close').addEventListener('click', close);
+document.getElementById('panel-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) close(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+</script>
+</body>
+</html>
